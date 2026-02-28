@@ -1,10 +1,7 @@
+// dotenv is optional; we no longer need any API keys
+require("dotenv").config({ path: "./backend/.env" });
 const express = require("express");
 const cors = require("cors");
-const dotenv = require("dotenv");
-require("dotenv").config();
-
- 
-dotenv.config();
 
 const app = express();
 
