@@ -2,24 +2,15 @@ const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
 
-
-function formatPathForFFmpeg(filePath) {
-  return filePath
-    .replace(/\\/g, "/")       // convert \ to /
-    .replace("C:", "C\\\\:");  // escape drive colon
-}
-
-
 const { extractAudio } = require("../services/ffmpegService");
 const { transcribeAudio } = require("../services/transcriptionService");
 const { timestampToSeconds } = require("../utils/timeUtils");
 const { createClip } = require("../services/clipService");
+const { getBestSegment } = require("../services/highlightService");
 
-/*
-|--------------------------------------------------------------------------
-| Multer Storage Configuration
-|--------------------------------------------------------------------------
-*/
+function buildTimestampedTranscript(subtitles) {
+  return subtitles.map((s) => `${s.start} --> ${s.end}\n${s.text}`).join("\n\n");
+}
 
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
@@ -33,14 +24,8 @@ const storage = multer.diskStorage({
 
 const upload = multer({
   storage,
-  limits: { fileSize: 100 * 1024 * 1024 }, // 100MB limit
+  limits: { fileSize: 100 * 1024 * 1024 },
 }).single("video");
-
-/*
-|--------------------------------------------------------------------------
-| Upload + Process Controller
-|--------------------------------------------------------------------------
-*/
 
 exports.uploadVideo = (req, res) => {
   upload(req, res, async function (err) {
@@ -52,9 +37,7 @@ exports.uploadVideo = (req, res) => {
     }
 
     if (!req.file) {
-      return res.status(400).json({
-        error: "No video file uploaded",
-      });
+      return res.status(400).json({ error: "No video file uploaded" });
     }
 
     let videoPath = null;
@@ -62,82 +45,62 @@ exports.uploadVideo = (req, res) => {
 
     try {
       videoPath = req.file.path;
-      console.log("Video Uploaded:", videoPath);
+      console.log("UPLOAD: file saved:", videoPath);
 
-      /*
-      |--------------------------------------------------------------------------
-      | Step 1: Extract Audio
-      |--------------------------------------------------------------------------
-      */
+      console.time("extractAudio");
       audioPath = await extractAudio(videoPath);
-      console.log("Audio Extracted:", audioPath);
+      console.timeEnd("extractAudio");
+      console.log("AUDIO:", audioPath);
 
-      /*
-      |--------------------------------------------------------------------------
-      | Step 2: Transcribe Audio (returns subtitles + srtPath)
-      |--------------------------------------------------------------------------
-      */
-      const result = await transcribeAudio(audioPath);
-
-      const subtitles = result.subtitles;
-      const srtPath = result.srtPath;
+      console.time("transcribeAudio");
+      const { subtitles, srtPath } = await transcribeAudio(audioPath);
+      console.timeEnd("transcribeAudio");
+      console.log("SRT:", srtPath, "subtitles:", subtitles?.length || 0);
 
       if (!subtitles || subtitles.length === 0) {
         throw new Error("No subtitles generated");
       }
 
-      /*
-      |--------------------------------------------------------------------------
-      | Step 3: Pick First Meaningful Segment (>4 words)
-      |--------------------------------------------------------------------------
-      */
-      const validSubs = subtitles.filter(
-        (sub) => sub.text.split(" ").length > 4
-      );
+      const transcriptForModel = buildTimestampedTranscript(subtitles);
 
-      if (validSubs.length === 0) {
-        throw new Error("No strong subtitle segments found");
-      }
+      console.time("getBestSegment");
+      const best = await getBestSegment(transcriptForModel);
+      console.timeEnd("getBestSegment");
+      console.log("PICKED:", best);
 
-      const firstSegment = validSubs[0];
+      const startSeconds = Math.max(0, timestampToSeconds(best.start_ts));
+      const endSeconds = Math.max(startSeconds + 1, timestampToSeconds(best.end_ts));
 
-      const startSeconds = timestampToSeconds(firstSegment.start);
-      const endSeconds = startSeconds + 30; // 30-second short
+      const duration = Math.min(60, Math.max(5, endSeconds - startSeconds));
 
-      /*
-      |--------------------------------------------------------------------------
-      | Step 4: Create Vertical Short + Burn Subtitles
-      |--------------------------------------------------------------------------
-      */
+      const outputDir = path.join(__dirname, "../outputs");
+      if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
+
+      const outputPath = path.join(outputDir, `short_${Date.now()}.mp4`);
+
+      console.time("createClip");
       const finalVideoPath = await createClip(
         videoPath,
+        outputPath,
         startSeconds,
-        endSeconds,
+        duration,
         srtPath
       );
+      console.timeEnd("createClip");
+      console.log("FINAL:", finalVideoPath);
 
-      console.log("Short Created:", finalVideoPath);
-
-      /*
-      |--------------------------------------------------------------------------
-      | Step 5: Cleanup Temp Audio (Keep Final Short)
-      |--------------------------------------------------------------------------
-      */
-      if (audioPath && fs.existsSync(audioPath)) {
-        fs.unlinkSync(audioPath);
-      }
+      if (audioPath && fs.existsSync(audioPath)) fs.unlinkSync(audioPath);
 
       return res.status(200).json({
         message: "Short generated successfully",
         shortPath: finalVideoPath,
+        pickedSegment: best,
+        durationSeconds: duration,
       });
-
     } catch (error) {
-      console.error("Processing error:", error);
+      console.error("PROCESSING ERROR:", error);
 
-      if (audioPath && fs.existsSync(audioPath)) {
-        fs.unlinkSync(audioPath);
-      }
+      if (audioPath && fs.existsSync(audioPath)) fs.unlinkSync(audioPath);
 
       return res.status(500).json({
         error: "Processing failed",

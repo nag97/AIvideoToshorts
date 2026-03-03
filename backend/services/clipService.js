@@ -1,53 +1,40 @@
 const { exec } = require("child_process");
 const path = require("path");
 
-exports.createClip = (videoPath, startTime, endTime, srtPath) => {
+function escapeForFFmpegPath(p) {
+  // FFmpeg subtitles filter likes forward slashes; escape drive colon on Windows
+  return p.replace(/\\/g, "/").replace(":", "\\:");
+}
+
+/**
+ * Create a vertical short + burn subtitles
+ * @param {string} inputPath  - original video path
+ * @param {string} outputPath - final mp4 path
+ * @param {number} startTime  - seconds
+ * @param {number} duration   - seconds
+ * @param {string} srtPath    - subtitle file path
+ */
+function createClip(inputPath, outputPath, startTime, duration, srtPath) {
   return new Promise((resolve, reject) => {
-    const basePath = videoPath.replace(path.extname(videoPath), "");
+    const inPath = path.resolve(inputPath);
+    const outPath = path.resolve(outputPath);
+    const srtEscaped = escapeForFFmpegPath(path.resolve(srtPath));
 
-    const clipPath = `${basePath}_clip.mp4`;
-    const finalPath = `${basePath}_short.mp4`;
+    const vf = [
+      "scale=1080:1920:force_original_aspect_ratio=increase",
+      "crop=1080:1920",
+      `subtitles='${srtEscaped}'`
+    ].join(",");
 
-    /*
-    |--------------------------------------------------------------------------
-    | Step 1: Cut Clip
-    |--------------------------------------------------------------------------
-    */
+    const command =
+      `ffmpeg -ss ${startTime} -i "${inPath}" -t ${duration} ` +
+      `-vf "${vf}" -c:v libx264 -preset veryfast -crf 23 -c:a aac -y "${outPath}"`;
 
-    const cutCmd = `ffmpeg -i "${videoPath}" -ss ${startTime} -to ${endTime} -c copy "${clipPath}" -y`;
-
-    console.log("Cut Command:", cutCmd);
-
-    exec(cutCmd, (cutError) => {
-      if (cutError) {
-        console.error("FFmpeg Cut Error:", cutError);
-        return reject(cutError);
-      }
-
-      /*
-      |--------------------------------------------------------------------------
-      | Step 2: Burn Subtitles + Vertical Format (Windows Safe)
-      |--------------------------------------------------------------------------
-      */
-
-      // Normalize path for ffmpeg subtitles filter: use forward slashes,
-      // escape the drive-colon (C:\ -> C\:) and wrap in single quotes.
-      const escapedSrtPath = srtPath
-        .replace(/\\/g, "/")
-        .replace(/^([A-Za-z]):/, "$1\\:");
-
-      const burnCmd = `ffmpeg -i "${clipPath}" -vf "scale=1080:1920,subtitles='${escapedSrtPath}'" -c:a copy "${finalPath}" -y`;
-
-      console.log("Burn Command:", burnCmd);
-
-      exec(burnCmd, (burnError) => {
-        if (burnError) {
-          console.error("FFmpeg Burn Error:", burnError);
-          return reject(burnError);
-        }
-
-        resolve(finalPath);
-      });
+    exec(command, (error, stdout, stderr) => {
+      if (error) return reject(new Error(stderr || error.message));
+      resolve(outPath);
     });
   });
-};
+}
+
+module.exports = { createClip };
