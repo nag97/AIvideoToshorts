@@ -9,7 +9,9 @@ const { createClip } = require("../services/clipService");
 const { getBestSegment } = require("../services/highlightService");
 
 function buildTimestampedTranscript(subtitles) {
-  return subtitles.map((s) => `${s.start} --> ${s.end}\n${s.text}`).join("\n\n");
+  return subtitles
+    .map((s) => `${s.start} --> ${s.end}\n${s.text}`)
+    .join("\n\n");
 }
 
 const storage = multer.diskStorage({
@@ -69,12 +71,16 @@ exports.uploadVideo = (req, res) => {
       console.log("PICKED:", best);
 
       const startSeconds = Math.max(0, timestampToSeconds(best.start_ts));
-      const endSeconds = Math.max(startSeconds + 1, timestampToSeconds(best.end_ts));
+      const endSeconds = Math.max(
+        startSeconds + 1,
+        timestampToSeconds(best.end_ts),
+      );
 
       const duration = Math.min(60, Math.max(5, endSeconds - startSeconds));
 
       const outputDir = path.join(__dirname, "../outputs");
-      if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
+      if (!fs.existsSync(outputDir))
+        fs.mkdirSync(outputDir, { recursive: true });
 
       const outputPath = path.join(outputDir, `short_${Date.now()}.mp4`);
 
@@ -84,16 +90,20 @@ exports.uploadVideo = (req, res) => {
         outputPath,
         startSeconds,
         duration,
-        srtPath
+        srtPath,
       );
       console.timeEnd("createClip");
       console.log("FINAL:", finalVideoPath);
 
       if (audioPath && fs.existsSync(audioPath)) fs.unlinkSync(audioPath);
 
+      const filename = path.basename(finalVideoPath);
+      const shortUrl = `${req.protocol}://${req.get("host")}/outputs/${encodeURIComponent(filename)}`;
+
       return res.status(200).json({
         message: "Short generated successfully",
         shortPath: finalVideoPath,
+        shortUrl: shortUrl,
         pickedSegment: best,
         durationSeconds: duration,
       });

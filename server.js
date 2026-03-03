@@ -9,6 +9,9 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// ✅ Serve outputs directory as static files
+app.use("/outputs", express.static(path.join(__dirname, "backend/outputs")));
+
 // ✅ mount video routes
 const videoRoutes = require("./backend/routes/videoRoutes");
 app.use("/api/video", videoRoutes);
