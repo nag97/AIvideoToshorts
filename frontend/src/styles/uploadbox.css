@@ -1,0 +1,269 @@
+/* Upload Box Container */
+.upload-box-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2rem;
+  animation: slideIn 0.6s ease 0.3s both;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Error Message */
+.error-message {
+  width: 100%;
+  max-width: 600px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  color: #fca5a5;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  animation: slideIn 0.3s ease;
+}
+
+/* Upload Box */
+.upload-box {
+  width: 100%;
+  max-width: 600px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(160, 160, 255, 0.2);
+  border-radius: 12px;
+  padding: 1.5rem;
+  backdrop-filter: blur(20px);
+  box-shadow: 0 8px 32px rgba(160, 160, 255, 0.1);
+  transition: all 0.3s ease;
+}
+
+.upload-box:hover {
+  border-color: rgba(160, 160, 255, 0.4);
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: 0 8px 40px rgba(160, 160, 255, 0.15);
+}
+
+.upload-box:focus-within {
+  border-color: rgba(160, 160, 255, 0.6);
+  box-shadow: 0 8px 50px rgba(160, 160, 255, 0.2);
+}
+
+/* Input Wrapper */
+.input-wrapper {
+  position: relative;
+  margin-bottom: 1.5rem;
+}
+
+/* Video Input */
+.video-input {
+  width: 100%;
+  padding: 1rem 1.5rem;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(160, 160, 255, 0.15);
+  border-radius: 8px;
+  color: #ffffff;
+  font-size: 1rem;
+  transition: all 0.3s ease;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.video-input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.video-input:focus {
+  outline: none;
+  border-color: rgba(160, 160, 255, 0.5);
+  background: rgba(160, 160, 255, 0.05);
+  box-shadow: 0 0 20px rgba(160, 160, 255, 0.1);
+}
+
+/* Button Group */
+.button-group {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+/* Primary Button */
+.btn-primary {
+  flex: 1;
+  min-width: 200px;
+  padding: 0.75rem 2rem;
+  background: linear-gradient(135deg, #a0a0ff, #7070ff);
+  border: none;
+  color: #ffffff;
+  font-size: 1rem;
+  font-weight: 600;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 20px rgba(160, 160, 255, 0.3);
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-primary::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    135deg,
+    transparent,
+    rgba(255, 255, 255, 0.2),
+    transparent
+  );
+  transition: left 0.5s ease;
+}
+
+.btn-primary:hover:not(:disabled) {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 30px rgba(160, 160, 255, 0.4);
+}
+
+.btn-primary:hover:not(:disabled)::before {
+  left: 100%;
+}
+
+.btn-primary:active:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.btn-primary:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+/* Secondary Button */
+.btn-secondary {
+  flex: 1;
+  min-width: 200px;
+  padding: 0.75rem 2rem;
+  background: transparent;
+  border: 1.5px solid rgba(160, 160, 255, 0.3);
+  color: #ffffff;
+  font-size: 1rem;
+  font-weight: 600;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.btn-secondary:hover {
+  border-color: rgba(160, 160, 255, 0.6);
+  background: rgba(160, 160, 255, 0.08);
+  color: #a0a0ff;
+  transform: translateY(-2px);
+}
+
+.btn-secondary:active {
+  transform: translateY(-1px);
+}
+
+/* Gradient Bar */
+.gradient-bar {
+  width: 100%;
+  max-width: 600px;
+  height: 3px;
+  background: rgba(160, 160, 255, 0.1);
+  border-radius: 2px;
+  overflow: hidden;
+  position: relative;
+}
+
+.gradient-animation {
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    #a0a0ff 25%,
+    #7070ff 50%,
+    #a0a0ff 75%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: gradientFlow 3s ease infinite;
+}
+
+@keyframes gradientFlow {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* Upload Info */
+.upload-info {
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 0.85rem;
+  margin: 0;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .upload-box {
+    padding: 1.2rem;
+  }
+
+  .button-group {
+    gap: 0.8rem;
+  }
+
+  .btn-primary,
+  .btn-secondary {
+    min-width: 150px;
+    padding: 0.65rem 1.5rem;
+    font-size: 0.9rem;
+  }
+
+  .video-input {
+    padding: 0.8rem 1.2rem;
+    font-size: 0.95rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .upload-box-container {
+    gap: 1.5rem;
+  }
+
+  .upload-box {
+    padding: 1rem;
+  }
+
+  .button-group {
+    flex-direction: column;
+    gap: 0.8rem;
+  }
+
+  .btn-primary,
+  .btn-secondary {
+    width: 100%;
+    min-width: auto;
+    padding: 0.75rem 1rem;
+  }
+
+  .video-input {
+    padding: 0.7rem 1rem;
+    font-size: 1rem;
+  }
+
+  .upload-info {
+    font-size: 0.8rem;
+  }
+}

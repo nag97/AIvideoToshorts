@@ -179,14 +179,20 @@ exports.uploadVideo = (req, res) => {
       if (audioPath && fs.existsSync(audioPath)) fs.unlinkSync(audioPath);
 
       const filename = path.basename(finalVideoPath);
-      const shortUrl = `${req.protocol}://${req.get("host")}/outputs/${encodeURIComponent(filename)}`;
+      // Build the full URL to the generated video
+      const shortUrl = `http://localhost:5000/outputs/${encodeURIComponent(filename)}`;
+
+      console.log("✅ SHORT URL:", shortUrl);
+      console.log("✅ FINAL VIDEO PATH:", finalVideoPath);
 
       return res.status(200).json({
+        success: true,
         message: "Short generated successfully",
-        shortPath: finalVideoPath,
         shortUrl: shortUrl,
+        outputVideo: `/outputs/${encodeURIComponent(filename)}`,
         pickedSegment: best,
         durationSeconds: duration,
+        timestamp: Date.now(),
       });
     } catch (error) {
       console.error("PROCESSING ERROR:", error);
@@ -194,6 +200,7 @@ exports.uploadVideo = (req, res) => {
       if (audioPath && fs.existsSync(audioPath)) fs.unlinkSync(audioPath);
 
       return res.status(500).json({
+        success: false,
         error: "Processing failed",
         details: error.message,
       });

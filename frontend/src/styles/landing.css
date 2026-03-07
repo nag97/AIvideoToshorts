@@ -1,0 +1,70 @@
+/* Landing Page */
+.landing-page {
+  background: #0f0f0f;
+  color: #ffffff;
+  overflow-x: hidden;
+}
+
+/* Global Scroll Bar */
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(160, 160, 255, 0.3);
+  border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(160, 160, 255, 0.5);
+}
+
+/* Progress Section */
+.progress-section {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 4rem 2rem;
+  background: linear-gradient(
+    135deg,
+    rgba(160, 160, 255, 0.03) 0%,
+    rgba(112, 112, 255, 0.01) 100%
+  );
+  border-bottom: 1px solid rgba(160, 160, 255, 0.1);
+}
+
+/* Error Section */
+.error-section {
+  display: flex;
+  justify-content: center;
+  padding: 2rem 2rem;
+  background: rgba(239, 68, 68, 0.05);
+}
+
+.error-section .error-message {
+  max-width: 600px;
+  width: 100%;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  color: #fca5a5;
+  padding: 1rem 1.5rem;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  text-align: center;
+  animation: slideIn 0.3s ease;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
