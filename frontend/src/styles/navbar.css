@@ -26,6 +26,18 @@
   flex-shrink: 0;
 }
 
+.logo-link {
+  text-decoration: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  transition: opacity 0.3s ease;
+}
+
+.logo-link:hover {
+  opacity: 0.8;
+}
+
 .logo {
   margin: 0;
   padding: 0;

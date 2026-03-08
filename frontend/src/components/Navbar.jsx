@@ -17,9 +17,11 @@ const Navbar = () => {
       <div className="navbar-container">
         {/* Logo */}
         <div className="navbar-brand">
-          <h1 className="logo">
-            <span className="logo-gradient">Nagify AI</span>
-          </h1>
+          <a href="/" className="logo-link">
+            <h1 className="logo">
+              <span className="logo-gradient">Nagify AI</span>
+            </h1>
+          </a>
         </div>
 
         {/* Navigation Items */}
