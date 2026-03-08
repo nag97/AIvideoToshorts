@@ -1,0 +1,21 @@
+[Script Info]
+Title: ShortifyAI
+ScriptType: v4.00+
+WrapStyle: 0
+ScaledBorderAndShadow: yes
+PlayResX: 1080
+PlayResY: 1920
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Default,Arial,30,&H0000D7FF,&H0000D7FF,&H00000000,&H64000000,1,0,0,0,100,100,0,0,1,2,1,2,80,80,140,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 0,0:00:00.00,0:00:07.08,Default,,0,0,0,,but there's one\Nmessage you could tell of you from our life how you think creates how you feel
+Dialogue: 0,0:00:07.08,0:00:11.41,Default,,0,0,0,,how you feel\Nbecomes an emotion that emotion becomes a vibration that vibration becomes a
+Dialogue: 0,0:00:11.41,0:00:15.83,Default,,0,0,0,,magnet that\Nattracts things to you also repels things away from you only think about what you
+Dialogue: 0,0:00:15.83,0:00:19.94,Default,,0,0,0,,want forget about\Nwhat you don't want never speak about what you don't have if it's no enemy on the
+Dialogue: 0,0:00:19.94,0:00:25.98,Default,,0,0,0,,inside of your\Nmind no enemy on the outside could ever do you or your body any harm don't look out
+Dialogue: 0,0:00:25.98,0:00:31.53,Default,,0,0,0,,the window look in\Nthe window look in the mirror fuck what they say fuck how they feel do you do what you want to do
+Dialogue: 0,0:00:31.53,0:00:35.25,Default,,0,0,0,,and be good at it\Njust make sure what you do is good to you and for you

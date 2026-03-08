@@ -1,12 +1,14 @@
 import React, { useState } from "react";
 import "../styles/uploadbox.css";
-import api from "../services/api";
+import { uploadVideo, watchJobProgress } from "../services/api";
 
 const UploadBox = ({ onUploadStart, onUploadSuccess, onUploadError }) => {
   const [inputValue, setInputValue] = useState("");
   const [selectedFile, setSelectedFile] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const [progress, setProgress] = useState(0);
+  const [currentStep, setCurrentStep] = useState("");
 
   const handleUploadVideo = () => {
     console.log("📁 Upload Video button clicked - opening file picker");
@@ -35,47 +37,49 @@ const UploadBox = ({ onUploadStart, onUploadSuccess, onUploadError }) => {
 
     setIsLoading(true);
     setError("");
+    setProgress(0);
+    setCurrentStep("");
 
     // Notify parent that upload is starting
     if (onUploadStart) onUploadStart();
 
     try {
-      console.log("🚀 Starting upload request to /api/video/upload");
-      console.log("📤 Sending file:", selectedFile.name);
+      console.log("🚀 Uploading video file to /api/video/upload");
+      console.log("📤 File:", selectedFile.name);
 
-      const formData = new FormData();
-      formData.append("video", selectedFile);
+      // Step 1: Upload and get jobId
+      const uploadResponse = await uploadVideo(selectedFile);
+      console.log("✅ Upload successful, jobId:", uploadResponse.jobId);
 
-      const response = await api.post("/api/video/upload", formData, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
+      const { jobId } = uploadResponse;
+
+      // Step 2: Watch job progress
+      console.log("👀 Starting to watch job progress...");
+      const result = await watchJobProgress(jobId, 2000, (job) => {
+        console.log(`📊 Progress update: ${job.progress}% - ${job.step}`);
+        setProgress(job.progress);
+        setCurrentStep(job.step);
       });
 
-      console.log("✅ Response received from backend:", response.data);
-      console.log("🎥 Result object:", response.data);
+      console.log("✅ Processing complete! Result:", result);
+      console.log("📹 Video URL:", result.shortUrl);
 
-      if (!response.data || !response.data.shortUrl) {
-        throw new Error("Invalid response: missing video URL");
-      }
-
-      console.log("📹 Video URL ready:", response.data.shortUrl);
-
-      // Notify parent with result
+      // Step 3: Pass final result to parent
       if (onUploadSuccess) {
-        onUploadSuccess(response.data);
+        onUploadSuccess(result);
       }
 
       // Clear form
       setInputValue("");
       setSelectedFile(null);
+      setProgress(100);
     } catch (err) {
       const errorMessage =
         err?.response?.data?.details ||
         err?.response?.data?.error ||
         err?.message ||
-        "Upload failed";
-      console.error("❌ Upload error:", errorMessage);
+        "Upload or processing failed";
+      console.error("❌ Error:", errorMessage);
       console.error("Full error:", err);
       setError(errorMessage);
 
@@ -142,6 +146,24 @@ const UploadBox = ({ onUploadStart, onUploadSuccess, onUploadError }) => {
       <div className="gradient-bar">
         <div className="gradient-animation"></div>
       </div>
+
+      {/* Processing Progress */}
+      {isLoading && progress > 0 && (
+        <div className="progress-display">
+          <div className="progress-info">
+            <span className="progress-label">{progress}%</span>
+            <span className="progress-step">{currentStep}</span>
+          </div>
+          <div className="progress-bar-wrapper">
+            <div className="progress-bar-background">
+              <div
+                className="progress-bar-fill"
+                style={{ width: `${Math.min(progress, 100)}%` }}
+              ></div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Processing Indicator */}
       <p className="upload-info">

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import api from "../services/api";
+import { uploadVideo, watchJobProgress } from "../services/api";
 
 function UploadForm({ onSuccess, setLoading, setError }) {
   const [file, setFile] = useState(null);
@@ -12,26 +12,33 @@ function UploadForm({ onSuccess, setLoading, setError }) {
       return;
     }
 
-    const formData = new FormData();
-    formData.append("video", file);
-
     try {
       setError("");
       setLoading(true);
 
-      const response = await api.post("/api/video/upload", formData, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
-      });
+      // Step 1: Upload and get jobId
+      console.log("🚀 Uploading video...");
+      const uploadResponse = await uploadVideo(file);
+      console.log("✅ Upload successful, tracking job...");
 
-      onSuccess(response.data);
+      // Step 2: Watch job progress
+      const result = await watchJobProgress(
+        uploadResponse.jobId,
+        2000,
+        (job) => {
+          console.log(`Progress: ${job.progress}% - ${job.step}`);
+        },
+      );
+
+      console.log("✅ Processing complete!");
+      onSuccess(result);
     } catch (error) {
       console.error(error);
       setError(
         error?.response?.data?.details ||
           error?.response?.data?.error ||
-          "Upload failed"
+          error?.message ||
+          "Upload failed",
       );
     } finally {
       setLoading(false);

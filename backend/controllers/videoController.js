@@ -2,11 +2,8 @@ const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
 
-const { extractAudio } = require("../services/ffmpegService");
-const { transcribeAudio } = require("../services/transcriptionService");
-const { timestampToSeconds } = require("../utils/timeUtils");
-const { createClip } = require("../services/clipService");
-const { getBestSegment } = require("../services/highlightService");
+const { createJob, getJob } = require("../store/jobStore");
+const { processVideoJob } = require("../workers/videoProcessor");
 
 function buildTimestampedTranscript(subtitles) {
   return subtitles
@@ -115,95 +112,69 @@ exports.uploadVideo = (req, res) => {
       return res.status(400).json({ error: "No video file uploaded" });
     }
 
-    let videoPath = null;
-    let audioPath = null;
-
     try {
-      videoPath = req.file.path;
-      console.log("UPLOAD: file saved:", videoPath);
+      const videoPath = req.file.path;
+      console.log("[Upload] File saved:", videoPath);
 
-      console.time("extractAudio");
-      audioPath = await extractAudio(videoPath);
-      console.timeEnd("extractAudio");
-      console.log("AUDIO:", audioPath);
+      // Step 1: Create a job
+      const jobId = createJob();
+      console.log("[Upload] Created job:", jobId, "for video:", videoPath);
 
-      console.time("transcribeAudio");
-      const { subtitles, srtPath } = await transcribeAudio(audioPath);
-      console.timeEnd("transcribeAudio");
-      console.log("SRT:", srtPath, "subtitles:", subtitles?.length || 0);
-
-      if (!subtitles || subtitles.length === 0) {
-        throw new Error("No subtitles generated");
-      }
-
-      const transcriptForModel = buildTimestampedTranscript(subtitles);
-
-      console.time("getBestSegment");
-      const best = await getBestSegment(transcriptForModel);
-      console.timeEnd("getBestSegment");
-      console.log("PICKED:", best);
-
-      const startSeconds = Math.max(0, timestampToSeconds(best.start_ts));
-      const endSeconds = Math.max(
-        startSeconds + 1,
-        timestampToSeconds(best.end_ts),
-      );
-
-      const duration = Math.min(60, Math.max(5, endSeconds - startSeconds));
-
-      const outputDir = path.join(__dirname, "../outputs");
-      if (!fs.existsSync(outputDir))
-        fs.mkdirSync(outputDir, { recursive: true });
-
-      const outputPath = path.join(outputDir, `short_${Date.now()}.mp4`);
-
-      // Generate segment-specific SRT (trimmed + time-shifted)
-      const segmentSrtPath = createSegmentSrt(
-        srtPath,
-        startSeconds,
-        duration,
-        outputDir,
-      );
-
-      console.time("createClip");
-      const finalVideoPath = await createClip(
-        videoPath,
-        outputPath,
-        startSeconds,
-        duration,
-        segmentSrtPath,
-      );
-      console.timeEnd("createClip");
-      console.log("FINAL:", finalVideoPath);
-
-      if (audioPath && fs.existsSync(audioPath)) fs.unlinkSync(audioPath);
-
-      const filename = path.basename(finalVideoPath);
-      // Build the full URL to the generated video
-      const shortUrl = `http://localhost:5000/outputs/${encodeURIComponent(filename)}`;
-
-      console.log("✅ SHORT URL:", shortUrl);
-      console.log("✅ FINAL VIDEO PATH:", finalVideoPath);
-
-      return res.status(200).json({
+      // Step 2: Return jobId immediately to frontend
+      res.status(202).json({
         success: true,
-        message: "Short generated successfully",
-        shortUrl: shortUrl,
-        outputVideo: `/outputs/${encodeURIComponent(filename)}`,
-        pickedSegment: best,
-        durationSeconds: duration,
-        timestamp: Date.now(),
+        message: "Video uploaded. Processing started.",
+        jobId: jobId,
+      });
+
+      // Step 3: Start background processing (fire and forget)
+      processVideoJob(jobId, videoPath).catch((err) => {
+        console.error(`[Background] Unhandled error in job ${jobId}:`, err);
       });
     } catch (error) {
-      console.error("PROCESSING ERROR:", error);
-
-      if (audioPath && fs.existsSync(audioPath)) fs.unlinkSync(audioPath);
-
+      console.error("[Upload] Error:", error);
       return res.status(500).json({
         success: false,
-        error: "Processing failed",
+        error: "Upload processing failed",
         details: error.message,
       });
     }
   });
+};
+
+/**
+ * Get the status of a processing job
+ * GET /api/video/status/:jobId
+ */
+exports.getJobStatus = (req, res) => {
+  const { jobId } = req.params;
+
+  try {
+    const job = getJob(jobId);
+
+    if (!job) {
+      return res.status(404).json({
+        error: "Job not found",
+        jobId: jobId,
+      });
+    }
+
+    // Return job status (exclude internal fields if needed)
+    return res.status(200).json({
+      id: job.id,
+      status: job.status,
+      progress: job.progress,
+      step: job.step,
+      result: job.result,
+      error: job.error,
+      createdAt: job.createdAt,
+      updatedAt: job.updatedAt,
+    });
+  } catch (error) {
+    console.error("[Status] Error:", error);
+    return res.status(500).json({
+      error: "Failed to fetch job status",
+      details: error.message,
+    });
+  }
 };
