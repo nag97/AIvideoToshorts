@@ -6,7 +6,14 @@ const path = require("path");
 
 const app = express();
 
-app.use(cors());
+app.use(
+  cors({
+    origin: [
+      "https://nova-shorts-frontend.vercel.app",
+      "http://localhost:5173",
+    ],
+  }),
+);
 app.use(express.json());
 
 // ✅ Serve outputs directory as static files
