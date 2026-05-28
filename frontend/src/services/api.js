@@ -1,7 +1,8 @@
+//  Bridge connects frontend to backend API for video upload and job status tracking
 import axios from "axios";
 
 const api = axios.create({
-  baseURL: "http://localhost:5000",
+  baseURL: "https://nova-shorts-ai.onrender.com",
 });
 
 /**
