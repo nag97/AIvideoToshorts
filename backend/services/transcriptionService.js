@@ -1,6 +1,8 @@
 const fs = require("fs");
 const path = require("path");
-const { spawn } = require("child_process");
+const Groq = require("groq-sdk");
+
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 function parseSRT(data) {
   const normalized = data.replace(/\r/g, "");
@@ -26,51 +28,24 @@ function parseSRT(data) {
   return subtitles;
 }
 
-function runWhisper(audioFullPath) {
-  return new Promise((resolve, reject) => {
-    const args = [
-      audioFullPath,
-      "--output_format",
-      "srt",
-      "--language",
-      "en",
-      "--output_dir",
-      path.dirname(audioFullPath),
-    ];
+// Converts seconds (float) to SRT timestamp format HH:MM:SS,mmm
+function secondsToSRTTime(seconds) {
+  const ms = Math.round((seconds % 1) * 1000);
+  const s = Math.floor(seconds % 60);
+  const m = Math.floor((seconds / 60) % 60);
+  const h = Math.floor(seconds / 3600);
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")},${String(ms).padStart(3, "0")}`;
+}
 
-    console.log(`[Whisper] Starting: whisper ${args.join(" ")}`);
-    const whisperProcess = spawn("whisper", args);
-
-    let stderr = "";
-    let stdout = "";
-
-    whisperProcess.stderr.on("data", (data) => {
-      stderr += data.toString();
-      console.log(`[Whisper stderr] ${data.toString().trim()}`);
-    });
-
-    whisperProcess.stdout.on("data", (data) => {
-      stdout += data.toString();
-      console.log(`[Whisper stdout] ${data.toString().trim()}`);
-    });
-
-    whisperProcess.on("error", (err) => {
-      console.error(`[Whisper] spawn error: ${err.message}`);
-      reject(new Error(`Failed to spawn whisper: ${err.message}`));
-    });
-
-    whisperProcess.on("close", (code) => {
-      if (code !== 0) {
-        console.error(`[Whisper] exited with code ${code}`);
-        reject(
-          new Error(`Whisper exited with code ${code}: ${stderr || stdout}`),
-        );
-      } else {
-        console.log(`[Whisper] completed successfully`);
-        resolve(stdout);
-      }
-    });
-  });
+// Converts Groq verbose_json segments into SRT string
+function segmentsToSRT(segments) {
+  return segments
+    .map((seg, i) => {
+      const start = secondsToSRTTime(seg.start);
+      const end = secondsToSRTTime(seg.end);
+      return `${i + 1}\n${start} --> ${end}\n${seg.text.trim()}`;
+    })
+    .join("\n\n");
 }
 
 exports.transcribeAudio = async (audioPath) => {
@@ -83,33 +58,42 @@ exports.transcribeAudio = async (audioPath) => {
 
   const outputPath = audioFullPath.replace(path.extname(audioFullPath), ".srt");
 
-  // Remove old SRT if exists
   if (fs.existsSync(outputPath)) {
     fs.unlinkSync(outputPath);
     console.log(`[Transcription] Removed old SRT: ${outputPath}`);
   }
 
+  console.log(`[Transcription] Sending to Groq Whisper API...`);
+
   try {
-    await runWhisper(audioFullPath);
+    const response = await groq.audio.transcriptions.create({
+      file: fs.createReadStream(audioFullPath),
+      model: "whisper-large-v3",
+      response_format: "verbose_json", // Groq supports this
+      language: "en",
+    });
+
+    // response.segments contains [{start, end, text}, ...]
+    if (!response.segments || response.segments.length === 0) {
+      throw new Error("Groq returned no segments");
+    }
+
+    // Convert segments to SRT format
+    const srtString = segmentsToSRT(response.segments);
+
+    // Save SRT file so rest of pipeline works exactly as before
+    fs.writeFileSync(outputPath, srtString, "utf8");
+    console.log(`[Transcription] SRT saved to: ${outputPath}`);
+
+    const subtitles = parseSRT(srtString);
+    if (subtitles.length === 0) {
+      throw new Error("No subtitle blocks parsed from SRT");
+    }
+
+    console.log(`[Transcription] Success: ${subtitles.length} subtitle blocks`);
+    return { subtitles, srtPath: outputPath };
   } catch (error) {
-    console.error(`[Transcription] Whisper failed: ${error.message}`);
+    console.error(`[Transcription] Groq API failed: ${error.message}`);
     throw error;
   }
-
-  if (!fs.existsSync(outputPath)) {
-    throw new Error(`Whisper did not produce SRT at: ${outputPath}`);
-  }
-
-  const srtString = fs.readFileSync(outputPath, "utf8");
-  if (!srtString.trim()) {
-    throw new Error("Generated SRT file is empty");
-  }
-
-  const subtitles = parseSRT(srtString);
-  if (subtitles.length === 0) {
-    throw new Error("No subtitle blocks parsed from SRT");
-  }
-
-  console.log(`[Transcription] Success: ${subtitles.length} subtitle blocks`);
-  return { subtitles, srtPath: outputPath };
 };

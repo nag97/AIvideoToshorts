@@ -1,0 +1,24 @@
+[Script Info]
+Title: ShortifyAI
+ScriptType: v4.00+
+WrapStyle: 0
+ScaledBorderAndShadow: yes
+PlayResX: 1080
+PlayResY: 1920
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Default,Arial,30,&H0000D7FF,&H0000D7FF,&H00000000,&H64000000,1,0,0,0,100,100,0,0,1,2,1,2,80,80,140,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 0,0:00:00.00,0:00:00.42,Default,,0,0,0,,sheer\Nindefatigability makes me a feared opponent in any realm of human which is my saying it's a
+Dialogue: 0,0:00:00.42,0:00:04.36,Default,,0,0,0,,saying from my\Nfather but it's basically saying unmatched perspicacity so the ability to always
+Dialogue: 0,0:00:04.36,0:00:08.36,Default,,0,0,0,,pay attention\Nperspicacity is perception so unmatched I'm always paying attention to everything all the
+Dialogue: 0,0:00:08.36,0:00:12.89,Default,,0,0,0,,time and sheer\Nindefatigability I don't become tired makes me a feared opponent in any realm of
+Dialogue: 0,0:00:12.89,0:00:17.48,Default,,0,0,0,,human endeavor so\Na man who always pays attention and never gives up is a feared opponent no matter
+Dialogue: 0,0:00:17.48,0:00:21.19,Default,,0,0,0,,what no matter\Nwhat no matter what you're fighting against nobody else is going to wake up and care more about your
+Dialogue: 0,0:00:21.19,0:00:25.72,Default,,0,0,0,,life than you if\Nyou if you won't wake up every day and say I need to get rich
+Dialogue: 0,0:00:25.72,0:00:30.31,Default,,0,0,0,,nobody else is\Ngoing to wake up and say I need to make him rich yeah nobody else is going to do it
+Dialogue: 0,0:00:30.31,0:00:35.06,Default,,0,0,0,,for you so if you\Ndon't think it nobody else is going to think it which means nobody thinks it
+Dialogue: 0,0:00:35.06,0:00:39.00,Default,,0,0,0,,so it's down to\Nyou right only you're the person you're the only person on the planet who can think
