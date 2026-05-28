@@ -12,6 +12,13 @@ const { createClip } = require("../services/clipService");
 const { timestampToSeconds } = require("../utils/timeUtils");
 const { updateJob } = require("../store/jobStore");
 
+const outputDir = path.join(__dirname, "../outputs");
+const uploadDir = path.join(__dirname, "../uploads");
+
+// Create directories if they don't exist
+if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
+if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+
 /**
  * Helper: Convert seconds to SRT timestamp HH:MM:SS,mmm
  */
@@ -196,9 +203,9 @@ async function processVideoJob(jobId, videoPath) {
 
     // Build the result URL
     const filename = path.basename(finalVideoPath);
-    const shortUrl = `http://localhost:5000/outputs/${encodeURIComponent(
-      filename,
-    )}`;
+    // CORRECT - uses environment variable
+    const baseUrl = process.env.BASE_URL || "http://localhost:5000";
+    const shortUrl = `${baseUrl}/outputs/${encodeURIComponent(filename)}`;
 
     // Mark job as completed
     console.log(`[VideoProcessor ${jobId}] ✅ Processing complete!`);
