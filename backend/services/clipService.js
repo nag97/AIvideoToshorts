@@ -10,7 +10,7 @@ function timestampToASS(timestamp) {
   const clean = timestamp.replace(/\r/g, "").trim();
   const [hh, mm, rest] = clean.split(":");
   const [ss, ms = "000"] = rest.split(",");
-  const cs = ms.padEnd(3, "0").slice(0, 2); // centiseconds
+  const cs = ms.padEnd(3, "0").slice(0, 2);
   return `${Number(hh)}:${mm}:${ss}.${cs}`;
 }
 
@@ -21,13 +21,11 @@ function wrapText(text, maxChars = 18, maxLines = 2) {
 
   for (const word of words) {
     const test = current ? `${current} ${word}` : word;
-
     if (test.length <= maxChars) {
       current = test;
     } else {
       if (current) lines.push(current);
       current = word;
-
       if (lines.length === maxLines - 1) {
         const remainingWords = [current, ...words.slice(words.indexOf(word) + 1)];
         current = remainingWords.join(" ");
@@ -37,7 +35,6 @@ function wrapText(text, maxChars = 18, maxLines = 2) {
   }
 
   if (current) lines.push(current);
-
   return lines.slice(0, maxLines).join("\\N");
 }
 
@@ -45,16 +42,16 @@ function enhanceSubtitleStyling(srtPath) {
   const assPath = srtPath.replace(/\.srt$/i, "_styled.ass");
 
   const assHeader = `[Script Info]
-Title: ShortifyAI
+Title: NovaShorts
 ScriptType: v4.00+
 WrapStyle: 0
 ScaledBorderAndShadow: yes
-PlayResX: 1080
-PlayResY: 1920
+PlayResX: 720
+PlayResY: 1280
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,Arial,30,&H0000D7FF,&H0000D7FF,&H00000000,&H64000000,1,0,0,0,100,100,0,0,1,2,1,2,80,80,140,1
+Style: Default,Arial,28,&H0000D7FF,&H0000D7FF,&H00000000,&H64000000,1,0,0,0,100,100,0,0,1,2,1,2,60,60,100,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -62,27 +59,21 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
   const srtContent = fs.readFileSync(srtPath, "utf8").replace(/\r/g, "");
   const blocks = srtContent.split(/\n\s*\n/).filter(Boolean);
-
   let assEvents = "";
 
   for (const block of blocks) {
     const lines = block.split("\n").map((l) => l.trim()).filter(Boolean);
     if (lines.length < 3) continue;
-
     const timeLine = lines[1];
     if (!timeLine.includes(" --> ")) continue;
-
     const [startRaw, endRaw] = timeLine.split(" --> ");
     const start = timestampToASS(startRaw);
     const end = timestampToASS(endRaw);
-
     const text = lines.slice(2).join(" ").replace(/\s+/g, " ").trim();
     if (!text) continue;
-
     const wrapped = wrapText(text, 18, 2)
       .replace(/{/g, "\\{")
       .replace(/}/g, "\\}");
-
     assEvents += `Dialogue: 0,${start},${end},Default,,0,0,0,,${wrapped}\n`;
   }
 
@@ -95,6 +86,9 @@ function createClip(inputPath, outputPath, startTime, duration, srtPath) {
     const inPath = path.resolve(inputPath);
     const outPath = path.resolve(outputPath);
 
+    // Cap duration at 15 seconds to stay within free tier memory
+    const safeDuration = Math.min(duration, 15);
+
     let assPath;
     try {
       assPath = enhanceSubtitleStyling(srtPath);
@@ -105,22 +99,25 @@ function createClip(inputPath, outputPath, startTime, duration, srtPath) {
 
     const assEscaped = escapeForFFmpegPath(path.resolve(assPath));
 
+    // Key changes vs before:
+    // 1. Resolution reduced: 1080x1920 → 720x1280 (55% less pixels = much less RAM)
+    // 2. Removed expensive boxblur background
+    // 3. Simple crop instead of blur+overlay
+    // 4. preset ultrafast instead of veryfast
+    // 5. Duration capped at 15 seconds
     const filterComplex =
-      `[0:v]scale=1080:1920:force_original_aspect_ratio=increase,boxblur=20:10,crop=1080:1920[bg];` +
-      `[0:v]scale=980:-2[fg];` +
-      `[bg][fg]overlay=(W-w)/2:(H-h)/2[base];` +
-      `[base]ass='${assEscaped}'[vout]`;
+      `[0:v]crop=ih*9/16:ih,scale=720:1280,ass='${assEscaped}'[vout]`;
 
     const command =
-      `ffmpeg -ss ${startTime} -i "${inPath}" -t ${duration} ` +
+      `ffmpeg -ss ${startTime} -i "${inPath}" -t ${safeDuration} ` +
       `-filter_complex "${filterComplex}" ` +
       `-map "[vout]" -map 0:a:0? ` +
-      `-c:v libx264 -preset veryfast -crf 23 -c:a aac -y "${outPath}"`;
+      `-c:v libx264 -preset ultrafast -crf 28 -c:a aac -y "${outPath}"`;
 
     console.log("[ClipService] Running FFmpeg...");
     console.log(command);
 
-    exec(command, (error, stdout, stderr) => {
+    exec(command, { maxBuffer: 10 * 1024 * 1024 }, (error, stdout, stderr) => {
       if (error) {
         console.error(stderr || error.message);
         return reject(new Error(stderr || error.message));
