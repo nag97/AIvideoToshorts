@@ -5,6 +5,7 @@
 
 const path = require("path");
 const fs = require("fs");
+const ffmpeg = require("fluent-ffmpeg");
 const { extractAudio } = require("../services/ffmpegService");
 const { transcribeAudio } = require("../services/transcriptionService");
 const { getBestSegment } = require("../services/highlightService");
@@ -119,9 +120,49 @@ async function processVideoJob(jobId, videoPath) {
     console.log(`[VideoProcessor ${jobId}] ======== PIPELINE START ========`);
     console.log(`[VideoProcessor ${jobId}] Input video: ${videoPath}`);
 
-    // Step 1: Extract audio
+    // Validate uploaded video contains a video stream before doing any audio or AI work
     console.log(
-      `[VideoProcessor ${jobId}] [STAGE 1/5] Starting audio extraction...`,
+      `[VideoProcessor ${jobId}] [STAGE 1/6] Validating uploaded video stream...`,
+    );
+    await updateJob(jobId, {
+      status: "processing",
+      progress: 5,
+      step: "Validating uploaded video",
+    });
+
+    const metadata = await new Promise((resolve, reject) => {
+      ffmpeg.ffprobe(videoPath, (err, data) => {
+        if (err) return reject(err);
+        resolve(data);
+      });
+    });
+
+    const hasVideoStream = Array.isArray(metadata.streams)
+      ? metadata.streams.some((stream) => stream.codec_type === "video")
+      : false;
+
+    if (!hasVideoStream) {
+      const validationError =
+        "Uploaded file does not contain a video stream. Please upload a video file.";
+      console.error(
+        `[VideoProcessor ${jobId}] Validation failed: ${validationError}`,
+      );
+      await updateJob(jobId, {
+        status: "failed",
+        progress: 0,
+        step: "Error - invalid upload",
+        error: validationError,
+      });
+      return;
+    }
+
+    console.log(
+      `[VideoProcessor ${jobId}] [STAGE 1/6] ✓ Video stream validation passed`,
+    );
+
+    // Step 2: Extract audio
+    console.log(
+      `[VideoProcessor ${jobId}] [STAGE 2/6] Starting audio extraction...`,
     );
     await updateJob(jobId, {
       status: "processing",
@@ -131,7 +172,7 @@ async function processVideoJob(jobId, videoPath) {
 
     audioPath = await extractAudio(videoPath);
     console.log(
-      `[VideoProcessor ${jobId}] [STAGE 1/5] ✓ Audio extracted: ${audioPath}`,
+      `[VideoProcessor ${jobId}] [STAGE 2/6] ✓ Audio extracted: ${audioPath}`,
     );
 
     // Step 2: Transcribe audio
