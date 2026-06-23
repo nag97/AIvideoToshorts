@@ -14,6 +14,13 @@ app.use(
     ],
   }),
 );
+// Use raw body for QStash callback route to allow exact signature verification
+app.use(
+  "/api/video/process-callback",
+  express.raw({ type: "application/json" }),
+);
+
+// Parse JSON for all other routes
 app.use(express.json());
 
 // ✅ Serve outputs directory as static files

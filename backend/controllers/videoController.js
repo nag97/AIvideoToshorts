@@ -128,6 +128,7 @@ exports.uploadVideo = (req, res) => {
       try {
         const qstash = new Client({
           token: process.env.QSTASH_TOKEN,
+          baseUrl: process.env.QSTASH_URL,
         });
 
         if (!process.env.BACKEND_PUBLIC_URL) {
@@ -225,22 +226,28 @@ exports.processCallback = async (req, res) => {
       nextSigningKey: process.env.QSTASH_NEXT_SIGNING_KEY,
     });
 
-    const signature = req.headers["upstash-signature"];
+    const signature =
+      req.headers["upstash-signature"] || req.headers["Upstash-Signature"];
     if (!signature) {
       console.warn("[ProcessCallback] Missing Upstash signature header");
       return res.status(401).json({ error: "Unauthorized: missing signature" });
     }
 
-    // Get the raw body as a string for verification
-    let body = req.body;
-    if (typeof body !== "string") {
-      body = JSON.stringify(body);
+    // req.body is expected to be a Buffer from express.raw middleware for this route
+    let rawBody;
+    if (Buffer.isBuffer(req.body)) {
+      rawBody = req.body.toString("utf-8");
+    } else if (typeof req.body === "string") {
+      rawBody = req.body;
+    } else {
+      // Fallback: stringify (less ideal for signature verification)
+      rawBody = JSON.stringify(req.body);
     }
 
     try {
       await receiver.verify({
         signature: signature,
-        body: body,
+        body: rawBody,
       });
     } catch (verifyErr) {
       console.warn(
@@ -255,9 +262,20 @@ exports.processCallback = async (req, res) => {
 
     console.log("[ProcessCallback] ✓ QStash signature verified");
 
-    // Extract jobId from the payload
-    const payload =
-      typeof req.body === "string" ? JSON.parse(req.body) : req.body;
+    // Parse payload from the exact raw body string
+    let payload;
+    try {
+      payload = JSON.parse(rawBody);
+    } catch (parseErr) {
+      console.error(
+        "[ProcessCallback] Failed to parse JSON payload:",
+        parseErr.message,
+      );
+      return res
+        .status(400)
+        .json({ error: "Invalid JSON payload", details: parseErr.message });
+    }
+
     const { jobId } = payload;
 
     if (!jobId) {
