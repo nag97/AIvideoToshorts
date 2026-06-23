@@ -46,7 +46,7 @@ async function createJob(options = {}) {
   };
 
   const key = getJobKey(jobId);
-  await redis.setex(key, JOB_TTL, JSON.stringify(job));
+  await redis.setex(key, JOB_TTL, job);
   console.log(
     "[JobStore] Created job:",
     jobId,
@@ -71,7 +71,7 @@ async function getJob(jobId) {
     return null;
   }
 
-  return JSON.parse(data);
+  return data;
 }
 
 /**
@@ -88,7 +88,7 @@ async function updateJob(jobId, data) {
     throw new Error(`Job ${jobId} not found`);
   }
 
-  const job = JSON.parse(existing);
+  const job = existing;
   const updated = {
     ...job,
     ...data,
@@ -96,7 +96,7 @@ async function updateJob(jobId, data) {
   };
 
   // Re-set with TTL to refresh expiration
-  await redis.setex(key, JOB_TTL, JSON.stringify(updated));
+  await redis.setex(key, JOB_TTL, updated);
   console.log(`[JobStore] Updated job ${jobId}:`, data);
   return updated;
 }
@@ -123,7 +123,7 @@ async function getAllJobs() {
   for (const key of keys) {
     const data = await redis.get(key);
     if (data) {
-      jobs.push(JSON.parse(data));
+      jobs.push(data);
     }
   }
 
