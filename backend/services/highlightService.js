@@ -8,6 +8,65 @@ function getModel() {
   return genAI.getGenerativeModel({ model: "gemini-flash-latest" });
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isTransientGeminiError(error) {
+  if (!error) return false;
+
+  const status = error.statusCode || error.status || error.code;
+  const message = String(error.message || error.toString() || "");
+
+  const transientStatusCodes = [429, 503, 504];
+  const transientPatterns = [
+    /high demand/i,
+    /rate limit/i,
+    /service unavailable/i,
+    /temporar(?:y|ily)/i,
+    /timeout/i,
+    /internal server error/i,
+  ];
+
+  if (transientStatusCodes.includes(Number(status))) {
+    return true;
+  }
+
+  return transientPatterns.some((pattern) => pattern.test(message));
+}
+
+async function callGenerateContentWithRetry(model, prompt) {
+  const maxAttempts = 3;
+  let delayMs = 1000;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      return await model.generateContent(prompt);
+    } catch (error) {
+      const shouldRetry =
+        attempt < maxAttempts && isTransientGeminiError(error);
+      const delaySeconds = delayMs / 1000;
+
+      if (!shouldRetry) {
+        if (attempt > 1) {
+          console.error(
+            `[Highlight] Gemini retry exhausted after ${attempt} attempts: ${error.message}`,
+          );
+        }
+        throw error;
+      }
+
+      console.warn(
+        `[Highlight] Gemini transient error, retrying in ${delaySeconds}s, attempt ${attempt}/${maxAttempts}: ${error.message}`,
+      );
+      await sleep(delayMs);
+      delayMs *= 2;
+    }
+  }
+
+  throw new Error("Gemini generateContent retry loop exited unexpectedly.");
+}
+
 async function getBestSegment(timestampedTranscript) {
   console.log("[Gemini] Starting segment selection...");
 
@@ -32,7 +91,7 @@ ${timestampedTranscript}
 
   try {
     console.log("[Gemini] Calling generateContent...");
-    const result = await model.generateContent(prompt);
+    const result = await callGenerateContentWithRetry(model, prompt);
     console.log("[Gemini] Response received");
 
     const text = result.response.text().trim();
