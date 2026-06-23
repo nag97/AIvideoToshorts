@@ -116,35 +116,51 @@ async function processVideoJob(jobId, videoPath) {
   let audioPath = null;
 
   try {
+    console.log(`[VideoProcessor ${jobId}] ======== PIPELINE START ========`);
+    console.log(`[VideoProcessor ${jobId}] Input video: ${videoPath}`);
+
     // Step 1: Extract audio
-    console.log(`[VideoProcessor ${jobId}] Starting audio extraction...`);
-    updateJob(jobId, {
+    console.log(
+      `[VideoProcessor ${jobId}] [STAGE 1/5] Starting audio extraction...`,
+    );
+    await updateJob(jobId, {
       status: "processing",
       progress: 10,
       step: "Extracting audio from video",
     });
 
     audioPath = await extractAudio(videoPath);
-    console.log(`[VideoProcessor ${jobId}] Audio extracted: ${audioPath}`);
+    console.log(
+      `[VideoProcessor ${jobId}] [STAGE 1/5] ✓ Audio extracted: ${audioPath}`,
+    );
 
     // Step 2: Transcribe audio
-    console.log(`[VideoProcessor ${jobId}] Starting transcription...`);
-    updateJob(jobId, {
+    console.log(
+      `[VideoProcessor ${jobId}] [STAGE 2/5] Starting transcription...`,
+    );
+    await updateJob(jobId, {
       status: "processing",
       progress: 30,
       step: "Transcribing speech to text",
     });
 
     const { subtitles, srtPath } = await transcribeAudio(audioPath);
-    console.log(`[VideoProcessor ${jobId}] Transcription complete: ${srtPath}`);
+    console.log(
+      `[VideoProcessor ${jobId}] [STAGE 2/5] ✓ Transcription complete: ${srtPath}`,
+    );
+    console.log(
+      `[VideoProcessor ${jobId}] [STAGE 2/5] Generated ${subtitles?.length || 0} subtitle entries`,
+    );
 
     if (!subtitles || subtitles.length === 0) {
       throw new Error("No subtitles generated from audio");
     }
 
     // Step 3: Select best segment
-    console.log(`[VideoProcessor ${jobId}] Selecting best segment...`);
-    updateJob(jobId, {
+    console.log(
+      `[VideoProcessor ${jobId}] [STAGE 3/5] Selecting best highlight segment...`,
+    );
+    await updateJob(jobId, {
       status: "processing",
       progress: 60,
       step: "Selecting highlight with AI",
@@ -152,7 +168,10 @@ async function processVideoJob(jobId, videoPath) {
 
     const transcriptForModel = buildTimestampedTranscript(subtitles);
     const best = await getBestSegment(transcriptForModel);
-    console.log(`[VideoProcessor ${jobId}] Selected segment:`, best);
+    console.log(
+      `[VideoProcessor ${jobId}] [STAGE 3/5] ✓ Selected segment:`,
+      best,
+    );
 
     const startSeconds = Math.max(0, timestampToSeconds(best.start_ts));
     const endSeconds = Math.max(
@@ -160,10 +179,15 @@ async function processVideoJob(jobId, videoPath) {
       timestampToSeconds(best.end_ts),
     );
     const duration = Math.min(60, Math.max(5, endSeconds - startSeconds));
+    console.log(
+      `[VideoProcessor ${jobId}] [STAGE 3/5] Segment: start=${startSeconds}s, end=${endSeconds}s, duration=${duration}s`,
+    );
 
     // Step 4: Create the final clip
-    console.log(`[VideoProcessor ${jobId}] Creating final video clip...`);
-    updateJob(jobId, {
+    console.log(
+      `[VideoProcessor ${jobId}] [STAGE 4/5] Creating final video clip with subtitles...`,
+    );
+    await updateJob(jobId, {
       status: "processing",
       progress: 80,
       step: "Rendering video with subtitles",
@@ -181,6 +205,9 @@ async function processVideoJob(jobId, videoPath) {
       duration,
       outputDir,
     );
+    console.log(
+      `[VideoProcessor ${jobId}] [STAGE 4/5] Using SRT: ${segmentSrtPath}`,
+    );
 
     const finalVideoPath = await createClip(
       videoPath,
@@ -191,25 +218,35 @@ async function processVideoJob(jobId, videoPath) {
     );
 
     console.log(
-      `[VideoProcessor ${jobId}] Final video created:`,
-      finalVideoPath,
+      `[VideoProcessor ${jobId}] [STAGE 4/5] ✓ Final video created: ${finalVideoPath}`,
+    );
+
+    // Step 5: Finalization
+    console.log(
+      `[VideoProcessor ${jobId}] [STAGE 5/5] Finalizing and cleaning up...`,
     );
 
     // Cleanup audio file
     if (audioPath && fs.existsSync(audioPath)) {
       fs.unlinkSync(audioPath);
-      console.log(`[VideoProcessor ${jobId}] Cleaned up audio file`);
+      console.log(
+        `[VideoProcessor ${jobId}] [STAGE 5/5] Cleaned up audio file`,
+      );
     }
 
     // Build the result URL
     const filename = path.basename(finalVideoPath);
-    // CORRECT - uses environment variable
     const baseUrl = process.env.BASE_URL || "http://localhost:5000";
     const shortUrl = `${baseUrl}/outputs/${encodeURIComponent(filename)}`;
+    console.log(
+      `[VideoProcessor ${jobId}] [STAGE 5/5] Output URL: ${shortUrl}`,
+    );
 
     // Mark job as completed
-    console.log(`[VideoProcessor ${jobId}] ✅ Processing complete!`);
-    updateJob(jobId, {
+    console.log(
+      `[VideoProcessor ${jobId}] ✅ PIPELINE COMPLETE! Processing took approximately ${Math.round((Date.now() - new Date(Date.parse(new Date().toISOString()))) / 1000)} seconds`,
+    );
+    await updateJob(jobId, {
       status: "completed",
       progress: 100,
       step: "Completed",
@@ -221,24 +258,33 @@ async function processVideoJob(jobId, videoPath) {
         durationSeconds: duration,
       },
     });
+    console.log(`[VideoProcessor ${jobId}] Job state updated in Redis`);
   } catch (error) {
-    console.error(`[VideoProcessor ${jobId}] ❌ Error:`, error.message);
+    console.error(
+      `[VideoProcessor ${jobId}] ❌ PIPELINE FAILED! Error:`,
+      error.message,
+    );
+    console.error(`[VideoProcessor ${jobId}] Error stack:`, error.stack);
 
     // Cleanup audio file if it exists
     if (audioPath && fs.existsSync(audioPath)) {
       try {
         fs.unlinkSync(audioPath);
       } catch (e) {
-        console.error("Failed to cleanup audio:", e.message);
+        console.error(
+          `[VideoProcessor ${jobId}] Error cleaning up audio:`,
+          e.message,
+        );
       }
     }
 
     // Mark job as failed
-    updateJob(jobId, {
+    await updateJob(jobId, {
       status: "failed",
       error: error.message,
       step: "Error - processing failed",
     });
+    console.log(`[VideoProcessor ${jobId}] Job marked as failed in Redis`);
   }
 }
 
