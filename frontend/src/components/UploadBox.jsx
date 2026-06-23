@@ -22,6 +22,8 @@ const UploadBox = ({ onUploadStart, onUploadSuccess, onUploadError }) => {
       setSelectedFile(file);
       setInputValue(file.name);
       setError("");
+      setProgress(0);
+      setCurrentStep("");
     }
   };
 
@@ -131,6 +133,12 @@ const UploadBox = ({ onUploadStart, onUploadSuccess, onUploadError }) => {
             Upload Video
           </button>
         </div>
+
+        {!isLoading && !selectedFile && (
+          <div className="ready-new-upload-message">
+            Upload another video to generate more shorts.
+          </div>
+        )}
 
         {/* Hidden File Input */}
         <input
