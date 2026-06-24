@@ -2,6 +2,8 @@ const { exec } = require("child_process");
 const path = require("path");
 const fs = require("fs");
 
+const CLIP_MAX_DURATION_SECONDS = 15;
+
 function escapeForFFmpegPath(p) {
   return p.replace(/\\/g, "/").replace(":", "\\:");
 }
@@ -27,7 +29,10 @@ function wrapText(text, maxChars = 18, maxLines = 2) {
       if (current) lines.push(current);
       current = word;
       if (lines.length === maxLines - 1) {
-        const remainingWords = [current, ...words.slice(words.indexOf(word) + 1)];
+        const remainingWords = [
+          current,
+          ...words.slice(words.indexOf(word) + 1),
+        ];
         current = remainingWords.join(" ");
         break;
       }
@@ -62,7 +67,10 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
   let assEvents = "";
 
   for (const block of blocks) {
-    const lines = block.split("\n").map((l) => l.trim()).filter(Boolean);
+    const lines = block
+      .split("\n")
+      .map((l) => l.trim())
+      .filter(Boolean);
     if (lines.length < 3) continue;
     const timeLine = lines[1];
     if (!timeLine.includes(" --> ")) continue;
@@ -87,7 +95,7 @@ function createClip(inputPath, outputPath, startTime, duration, srtPath) {
     const outPath = path.resolve(outputPath);
 
     // Cap duration at 15 seconds to stay within free tier memory
-    const safeDuration = Math.min(duration, 15);
+    const safeDuration = Math.min(duration, CLIP_MAX_DURATION_SECONDS);
 
     let assPath;
     try {
@@ -105,8 +113,7 @@ function createClip(inputPath, outputPath, startTime, duration, srtPath) {
     // 3. Simple crop instead of blur+overlay
     // 4. preset ultrafast instead of veryfast
     // 5. Duration capped at 15 seconds
-    const filterComplex =
-      `[0:v]crop=ih*9/16:ih,scale=720:1280,ass='${assEscaped}'[vout]`;
+    const filterComplex = `[0:v]crop=ih*9/16:ih,scale=720:1280,ass='${assEscaped}'[vout]`;
 
     const command =
       `ffmpeg -ss ${startTime} -i "${inPath}" -t ${safeDuration} ` +
@@ -127,4 +134,4 @@ function createClip(inputPath, outputPath, startTime, duration, srtPath) {
   });
 }
 
-module.exports = { createClip };
+module.exports = { createClip, CLIP_MAX_DURATION_SECONDS };

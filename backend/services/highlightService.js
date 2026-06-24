@@ -5,9 +5,11 @@ const {
   rankCandidates,
   getTopKeywords,
   srtTimeToSeconds,
+  secondsToSrtTime,
   collectWindowText,
   getWordCount,
 } = require("./highlightScorer");
+const { CLIP_MAX_DURATION_SECONDS } = require("./clipService");
 
 function getModel() {
   const key = process.env.GEMINI_API_KEY;
@@ -115,7 +117,7 @@ async function getBestSegment(timestampedTranscript) {
 You are an expert viral YouTube Shorts editor.
 
 From the timestamped transcript below, choose the single most engaging segment for a short.
-Target length: 30–45 seconds (hard max 60 seconds).
+Target length: 10-15 seconds (hard max 15 seconds).
 
 Return STRICT JSON ONLY (no markdown, no extra text):
 {
@@ -251,9 +253,20 @@ async function selectBestSegmentWithScoring(subtitles, timestampedTranscript) {
       ? buildCandidateReason(winner, geminiSegment)
       : `Selected via code-based scoring because Gemini was unavailable`;
 
+    const clampedEndTime = Math.min(
+      winner.endTime,
+      winner.startTime + CLIP_MAX_DURATION_SECONDS,
+    );
+    const clampedEndTs = secondsToSrtTime(clampedEndTime);
+    const clampedDurationSeconds = clampedEndTime - winner.startTime;
+
+    console.log(
+      `[Highlight] Clamped winner to ${CLIP_MAX_DURATION_SECONDS}s max: duration=${clampedDurationSeconds}s`,
+    );
+
     return {
       start_ts: winner.start_ts,
-      end_ts: winner.end_ts,
+      end_ts: clampedEndTs,
       reason,
     };
   } catch (error) {
