@@ -12,6 +12,22 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function isQuotaExhaustedError(error) {
+  if (!error) return false;
+
+  const message = String(error.message || error.toString() || "");
+
+  // Daily quota exhaustion patterns specific to Gemini
+  const quotaPatterns = [
+    /PerDay/i,
+    /GenerateRequestsPerDayPerProjectPerModel/i,
+    /quota exceeded.*metric.*requests/i,
+    /daily.*quota/i,
+  ];
+
+  return quotaPatterns.some((pattern) => pattern.test(message));
+}
+
 function isTransientGeminiError(error) {
   if (!error) return false;
 
@@ -43,6 +59,14 @@ async function callGenerateContentWithRetry(model, prompt) {
     try {
       return await model.generateContent(prompt);
     } catch (error) {
+      // Check for daily quota exhaustion first — this is not retryable
+      if (isQuotaExhaustedError(error)) {
+        const quotaMessage =
+          "Daily Gemini API quota exceeded. Try again tomorrow or upgrade your plan.";
+        console.error(`[Highlight] ${quotaMessage}`, error.message);
+        throw new Error(quotaMessage);
+      }
+
       const shouldRetry =
         attempt < maxAttempts && isTransientGeminiError(error);
 
