@@ -64,7 +64,9 @@ async function callGenerateContentWithRetry(model, prompt) {
         const quotaMessage =
           "Daily Gemini API quota exceeded. Try again tomorrow or upgrade your plan.";
         console.error(`[Highlight] ${quotaMessage}`, error.message);
-        throw new Error(quotaMessage);
+        const quotaError = new Error(quotaMessage);
+        quotaError.originalError = error.message;
+        throw quotaError;
       }
 
       const shouldRetry =

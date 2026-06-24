@@ -319,12 +319,18 @@ async function processVideoJob(jobId, videoPath) {
       }
     }
 
-    // Mark job as failed
-    await updateJob(jobId, {
+    // Mark job as failed, preserving both clean message and original error
+    const jobUpdate = {
       status: "failed",
       error: error.message,
       step: "Error - processing failed",
-    });
+    };
+
+    if (error.originalError) {
+      jobUpdate.debugError = error.originalError;
+    }
+
+    await updateJob(jobId, jobUpdate);
     console.log(`[VideoProcessor ${jobId}] Job marked as failed in Redis`);
   }
 }
