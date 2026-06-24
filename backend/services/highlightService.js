@@ -185,43 +185,71 @@ function buildCandidateReason(candidate, geminiSegment) {
 }
 
 async function selectBestSegmentWithScoring(subtitles, timestampedTranscript) {
-  const geminiSegment = await getBestSegment(timestampedTranscript);
+  let geminiSegment = null;
+  let geminiAvailable = false;
+
+  try {
+    geminiSegment = await getBestSegment(timestampedTranscript);
+    geminiAvailable = true;
+  } catch (error) {
+    console.warn(
+      "[Highlight] Gemini unavailable, proceeding with code-only scoring:",
+      error.message,
+    );
+  }
 
   try {
     const candidates = generateCandidateSegments(subtitles);
     const fullKeywords = getTopKeywords(subtitles);
     const fullTranscriptContext = {
       subtitles,
-      geminiSegment,
+      geminiSegment: geminiAvailable ? geminiSegment : null,
       fullKeywords,
     };
 
-    const geminiStartTime = srtTimeToSeconds(geminiSegment.start_ts);
-    const geminiEndTime = srtTimeToSeconds(geminiSegment.end_ts);
-    const geminiText = collectWindowText(
-      subtitles,
-      geminiStartTime,
-      geminiEndTime,
-    );
-    const geminiCandidate = {
-      startTime: geminiStartTime,
-      endTime: geminiEndTime,
-      start_ts: geminiSegment.start_ts,
-      end_ts: geminiSegment.end_ts,
-      text: geminiText,
-      wordCount: getWordCount(geminiText),
-      duration: geminiEndTime - geminiStartTime,
-    };
-
-    const scoredCandidates = [geminiCandidate, ...candidates].map((candidate) =>
+    const scoredCandidates = candidates.map((candidate) =>
       scoreSegment(candidate, fullTranscriptContext),
     );
 
-    const ranked = rankCandidates(scoredCandidates);
+    if (geminiAvailable) {
+      const geminiStartTime = srtTimeToSeconds(geminiSegment.start_ts);
+      const geminiEndTime = srtTimeToSeconds(geminiSegment.end_ts);
+      const geminiText = collectWindowText(
+        subtitles,
+        geminiStartTime,
+        geminiEndTime,
+      );
+      const geminiCandidate = {
+        startTime: geminiStartTime,
+        endTime: geminiEndTime,
+        start_ts: geminiSegment.start_ts,
+        end_ts: geminiSegment.end_ts,
+        text: geminiText,
+        wordCount: getWordCount(geminiText),
+        duration: geminiEndTime - geminiStartTime,
+      };
+
+      scoredCandidates.unshift(
+        scoreSegment(geminiCandidate, fullTranscriptContext),
+      );
+    }
+
+    const weights = geminiAvailable
+      ? undefined
+      : {
+          sentimentIntensity: 0.25 / 0.7,
+          keywordDensity: 0.25 / 0.7,
+          speechRate: 0.2 / 0.7,
+          geminiRank: 0,
+        };
+
+    const ranked = rankCandidates(scoredCandidates, weights);
     console.log("[Highlight] Ranked candidates:", ranked);
 
     const winner = ranked[0];
-    const reason = buildCandidateReason(winner, geminiSegment);
+    const reason = geminiAvailable
+      ? buildCandidateReason(winner, geminiSegment)
+      : `Selected via code-based scoring because Gemini was unavailable`;
 
     return {
       start_ts: winner.start_ts,
@@ -229,11 +257,19 @@ async function selectBestSegmentWithScoring(subtitles, timestampedTranscript) {
       reason,
     };
   } catch (error) {
+    if (geminiAvailable) {
+      console.error(
+        "[Highlight] Scoring pipeline failed, falling back to Gemini raw pick:",
+        error.message,
+      );
+      return geminiSegment;
+    }
+
     console.error(
-      "[Highlight] Scoring pipeline failed, falling back to Gemini raw pick:",
+      "[Highlight] Code-only selection failed and no Gemini segment is available:",
       error.message,
     );
-    return geminiSegment;
+    throw error;
   }
 }
 
