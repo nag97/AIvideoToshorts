@@ -36,8 +36,8 @@ function isTransientGeminiError(error) {
 }
 
 async function callGenerateContentWithRetry(model, prompt) {
-  const maxAttempts = 3;
-  let delayMs = 1000;
+  const maxAttempts = 5;
+  let delayMs = 2000; // Start at 2 seconds
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
@@ -45,7 +45,11 @@ async function callGenerateContentWithRetry(model, prompt) {
     } catch (error) {
       const shouldRetry =
         attempt < maxAttempts && isTransientGeminiError(error);
-      const delaySeconds = delayMs / 1000;
+
+      // Add jitter: +/- 20% of the delay
+      const jitterPercent = (Math.random() - 0.5) * 0.4; // Random value between -0.2 and 0.2
+      const jitteredDelayMs = delayMs * (1 + jitterPercent);
+      const delaySeconds = (jitteredDelayMs / 1000).toFixed(2);
 
       if (!shouldRetry) {
         if (attempt > 1) {
@@ -59,7 +63,7 @@ async function callGenerateContentWithRetry(model, prompt) {
       console.warn(
         `[Highlight] Gemini transient error, retrying in ${delaySeconds}s, attempt ${attempt}/${maxAttempts}: ${error.message}`,
       );
-      await sleep(delayMs);
+      await sleep(Math.round(jitteredDelayMs));
       delayMs *= 2;
     }
   }
