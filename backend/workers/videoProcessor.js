@@ -8,7 +8,9 @@ const fs = require("fs");
 const ffmpeg = require("fluent-ffmpeg");
 const { extractAudio } = require("../services/ffmpegService");
 const { transcribeAudio } = require("../services/transcriptionService");
-const { getBestSegment } = require("../services/highlightService");
+const {
+  selectBestSegmentWithScoring,
+} = require("../services/highlightService");
 const { createClip } = require("../services/clipService");
 const { timestampToSeconds } = require("../utils/timeUtils");
 const { updateJob } = require("../store/jobStore");
@@ -208,7 +210,10 @@ async function processVideoJob(jobId, videoPath) {
     });
 
     const transcriptForModel = buildTimestampedTranscript(subtitles);
-    const best = await getBestSegment(transcriptForModel);
+    const best = await selectBestSegmentWithScoring(
+      subtitles,
+      transcriptForModel,
+    );
     console.log(
       `[VideoProcessor ${jobId}] [STAGE 3/5] ✓ Selected segment:`,
       best,

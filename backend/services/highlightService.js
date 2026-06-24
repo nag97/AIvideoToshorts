@@ -1,4 +1,13 @@
 const { GoogleGenerativeAI } = require("@google/generative-ai");
+const {
+  generateCandidateSegments,
+  scoreSegment,
+  rankCandidates,
+  getTopKeywords,
+  srtTimeToSeconds,
+  collectWindowText,
+  getWordCount,
+} = require("./highlightScorer");
 
 function getModel() {
   const key = process.env.GEMINI_API_KEY;
@@ -145,4 +154,87 @@ ${timestampedTranscript}
   }
 }
 
-module.exports = { getBestSegment };
+function buildCandidateReason(candidate, geminiSegment) {
+  if (
+    candidate.start_ts === geminiSegment.start_ts &&
+    candidate.end_ts === geminiSegment.end_ts
+  ) {
+    return geminiSegment.reason;
+  }
+
+  const reasons = [];
+  if (candidate.sentimentIntensity >= 70) {
+    reasons.push("high emotional intensity");
+  }
+  if (candidate.keywordDensity >= 70) {
+    reasons.push("strong keyword density");
+  }
+  if (candidate.speechRate >= 70) {
+    reasons.push("fast speech pace");
+  }
+  if (candidate.geminiRank >= 70) {
+    reasons.push("good Gemini alignment");
+  }
+
+  if (reasons.length === 0) {
+    return "Selected by scoring across multiple engagement signals";
+  }
+
+  const topReasons = reasons.slice(0, 2);
+  return `Selected for ${topReasons.join(" and ")}`;
+}
+
+async function selectBestSegmentWithScoring(subtitles, timestampedTranscript) {
+  const geminiSegment = await getBestSegment(timestampedTranscript);
+
+  try {
+    const candidates = generateCandidateSegments(subtitles);
+    const fullKeywords = getTopKeywords(subtitles);
+    const fullTranscriptContext = {
+      subtitles,
+      geminiSegment,
+      fullKeywords,
+    };
+
+    const geminiStartTime = srtTimeToSeconds(geminiSegment.start_ts);
+    const geminiEndTime = srtTimeToSeconds(geminiSegment.end_ts);
+    const geminiText = collectWindowText(
+      subtitles,
+      geminiStartTime,
+      geminiEndTime,
+    );
+    const geminiCandidate = {
+      startTime: geminiStartTime,
+      endTime: geminiEndTime,
+      start_ts: geminiSegment.start_ts,
+      end_ts: geminiSegment.end_ts,
+      text: geminiText,
+      wordCount: getWordCount(geminiText),
+      duration: geminiEndTime - geminiStartTime,
+    };
+
+    const scoredCandidates = [geminiCandidate, ...candidates].map((candidate) =>
+      scoreSegment(candidate, fullTranscriptContext),
+    );
+
+    const ranked = rankCandidates(scoredCandidates);
+    console.log("[Highlight] Ranked candidates:", ranked);
+
+    const winner = ranked[0];
+    const reason = buildCandidateReason(winner, geminiSegment);
+
+    return {
+      start_ts: winner.start_ts,
+      end_ts: winner.end_ts,
+      reason,
+    };
+  } catch (error) {
+    console.error(
+      "[Highlight] Scoring pipeline failed, falling back to Gemini raw pick:",
+      error.message,
+    );
+    return geminiSegment;
+  }
+}
+
+module.exports = { getBestSegment, selectBestSegmentWithScoring };
